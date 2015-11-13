@@ -2,11 +2,18 @@
 /**
 * 
 */
-class Str extends Core  implements \ArrayAccess, \IteratorAggregate
+class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerializable, \Serializable
 {
-	protected $allowed = ['len', 'json'];
+	protected $var;
+	protected $allowed = ['length', 'json', 'snake', 'camel'];
+	private static $camelCache = [];
+	private static $snakeCache = [];
+	private static $studlyCache = [];
+
+	public static $extends = [];
+
 	public function __construct($str) {
-		$this->var = $str;
+		$this->var = (string)$str;
 	}
 
 	// Custom methods
@@ -26,21 +33,20 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 		$arr = [];
 		if($callback) {
 			foreach($ret as $key => $val) {
-				$caller = $callback->bindTo(new Self($val));
-				$arr[] = $caller(new Self($key), new Self($val));
+				$caller = $callback->bindTo(new static($val));
+				$arr[] = $caller($key, new static($val));
 			}
 			return new Arr($arr);
 		}
 		return new Arr($ret);
 	}
 
-	public function html($element, $attrs) {
+	public function html($element, $attrs = []) {
 		$attribute = '';
 		foreach($attrs as $attr => $val) {
 			$attribute .= "{$attr}=\"{$val}\" ";
 		}
-		$this->var = "<{$element} {$attribute}>$this->var</{$element}>";
-		return $this;
+		return new static("<{$element} {$attribute}>$this->var</{$element}>");
 	}
 
 	public function json($array = false) {
@@ -52,15 +58,53 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	// Core methods
 	public function replace($pattern, $replace) {
 		if($this->isRegex($pattern)) {
-			$this->var = preg_replace($pattern, $replace, $this->var);
+			$var = preg_replace($pattern, $replace, $this->var);
 		} else {
-			$this->var = str_replace($pattern, $replace, $this->replace);
+			$var = str_replace($pattern, $replace, $this->replace);
 		}
-		return $this;
+		return new static($var);
 	}
 
-	public function len() {
+	public function length() {
 		return strlen($this->var);
+	}
+
+	public function equal($str) {
+		return $this->var == (string)$str;
+	}
+
+	// Regex functions
+	public function preg_filter() {
+
+	}
+
+	public function preg_grep() {
+
+	}
+
+	public function preg_last_error() {
+
+	}
+	public function preg_match_all($pattern, $subject, $matches) {
+
+	}
+	public function preg_match($pattern, $subject) {
+
+	}
+	public function preg_quote($str) {
+
+	}
+	public function preg_replace_callback($pattern, $callback, $subject) {
+		
+	}
+	public function preg_replace_callback_array($pattern, $callback, $subject) {
+
+	}
+	public function callback() {
+
+	}
+	public function preg_split($pattern, $subject) {
+
 	}
 
 	
@@ -361,7 +405,13 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 		
 	}
 	public function concat() {
-		
+		return new static($this->var . implode('', func_get_args()));
+	}
+
+	public function concat_ws() {
+		$args = func_get_args();
+		$concater = array_shift($args);
+		return new static($this->var . $concater . implode($concater, $args));
 	}
 	public function fromCharCode() {
 		
@@ -406,45 +456,15 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	public function valueOf() {
 		
 	}
-	public function anchor() {
-		
-	}
-	public function big() {
-		
-	}
-	public function blink() {
-		
-	}
-	public function bold() {
-		
-	}
+	
 	public function fixed() {
 		
 	}
-	public function fontcolor() {
-		
-	}
-	public function fontsize() {
-		
-	}
-	public function italics() {
-		
-	}
-	public function link() {
-		
-	}
-	public function small() {
-		
-	}
-	public function strike() {
-		
-	}
-
 	// laravel Helper functions
 
-	public static function ascii($value)
+	public function ascii()
 	{
-		return Utf8::toAscii($value);
+		return Utf8::toAscii($this->var);
 	}
 
 	/**
@@ -453,14 +473,17 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string  $value
 	 * @return string
 	 */
-	public static function camel($value)
+	public function camel()
 	{
+		$value = $this->var;
 		if (isset(static::$camelCache[$value]))
 		{
-			return static::$camelCache[$value];
+			$var = static::$camelCache[$value];
+		} else 
+		{
+			$var = static::$camelCache[$value] = lcfirst($this->studly());
 		}
-
-		return static::$camelCache[$value] = lcfirst(static::studly($value));
+		return new static($var);
 	}
 
 	/**
@@ -470,11 +493,11 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string|array  $needles
 	 * @return bool
 	 */
-	public static function contains($haystack, $needles)
+	public function contains($needles)
 	{
 		foreach ((array) $needles as $needle)
 		{
-			if ($needle != '' && strpos($haystack, $needle) !== false) return true;
+			if ($needle != '' && strpos($this->var, $needle) !== false) return true;
 		}
 
 		return false;
@@ -487,11 +510,11 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string|array  $needles
 	 * @return bool
 	 */
-	public static function endsWith($haystack, $needles)
+	public static function endsWith($needles)
 	{
 		foreach ((array) $needles as $needle)
 		{
-			if ((string) $needle === substr($haystack, -strlen($needle))) return true;
+			if ((string) $needle === substr($this->var, -strlen($needle))) return true;
 		}
 
 		return false;
@@ -504,11 +527,11 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string  $cap
 	 * @return string
 	 */
-	public static function finish($value, $cap)
+	public function finish($cap)
 	{
 		$quoted = preg_quote($cap, '/');
 
-		return preg_replace('/(?:'.$quoted.')+$/', '', $value).$cap;
+		return new static(preg_replace('/(?:'.$quoted.')+$/', '', $this->var).$cap);
 	}
 
 	/**
@@ -518,8 +541,9 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string  $value
 	 * @return bool
 	 */
-	public static function is($pattern, $value)
+	public function is($pattern)
 	{
+		$value = $this->var;
 		if ($pattern == $value) return true;
 
 		$pattern = preg_quote($pattern, '#');
@@ -533,17 +557,6 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	}
 
 	/**
-	 * Return the length of the given string.
-	 *
-	 * @param  string  $value
-	 * @return int
-	 */
-	public static function length($value)
-	{
-		return mb_strlen($value);
-	}
-
-	/**
 	 * Limit the number of characters in a string.
 	 *
 	 * @param  string  $value
@@ -551,11 +564,11 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string  $end
 	 * @return string
 	 */
-	public static function limit($value, $limit = 100, $end = '...')
+	public static function limit($limit = 100, $end = '...')
 	{
-		if (mb_strlen($value) <= $limit) return $value;
-
-		return rtrim(mb_substr($value, 0, $limit, 'UTF-8')).$end;
+		$value = $this->var;
+		if (mb_strlen($value) <= $limit) return new static($value);
+		return new static(rtrim(mb_substr($value, 0, $limit, 'UTF-8')).$end);
 	}
 
 	/**
@@ -564,9 +577,9 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string  $value
 	 * @return string
 	 */
-	public static function lower($value)
+	public function lower()
 	{
-		return mb_strtolower($value);
+		return new static(mb_strtolower($this->var));
 	}
 
 	/**
@@ -577,27 +590,17 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string  $end
 	 * @return string
 	 */
-	public static function words($value, $words = 100, $end = '...')
+	public static function words($words = 100, $end = '...')
 	{
+		$value = $this->var;
 		preg_match('/^\s*+(?:\S++\s*+){1,'.$words.'}/u', $value, $matches);
 
-		if ( ! isset($matches[0]) || strlen($value) === strlen($matches[0])) return $value;
+		if ( ! isset($matches[0]) || strlen($value) === strlen($matches[0])) return new static($value);
 
-		return rtrim($matches[0]).$end;
+		return new static(rtrim($matches[0]).$end);
 	}
 
-	/**
-	 * Parse a Class@method style callback into class and method.
-	 *
-	 * @param  string  $callback
-	 * @param  string  $default
-	 * @return array
-	 */
-	public static function parseCallback($callback, $default)
-	{
-		return static::contains($callback, '@') ? explode('@', $callback, 2) : array($callback, $default);
-	}
-
+	
 	/**
 	 * Get the plural form of an English word.
 	 *
@@ -608,31 +611,6 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	public static function plural($value, $count = 2)
 	{
 		return Pluralizer::plural($value, $count);
-	}
-
-	/**
-	 * Generate a more truly "random" alpha-numeric string.
-	 *
-	 * @param  int  $length
-	 * @return string
-	 *
-	 * @throws \RuntimeException
-	 */
-	public static function random($length = 16)
-	{
-		if (function_exists('openssl_random_pseudo_bytes'))
-		{
-			$bytes = openssl_random_pseudo_bytes($length * 2);
-
-			if ($bytes === false)
-			{
-				throw new \RuntimeException('Unable to generate random string.');
-			}
-
-			return substr(str_replace(array('/', '+', '='), '', base64_encode($bytes)), 0, $length);
-		}
-
-		return static::quickRandom($length);
 	}
 
 	/**
@@ -656,9 +634,9 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string  $value
 	 * @return string
 	 */
-	public static function upper($value)
+	public function upper()
 	{
-		return mb_strtoupper($value);
+		return new static(mb_strtoupper($this->var));
 	}
 
 	/**
@@ -667,9 +645,9 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string  $value
 	 * @return string
 	 */
-	public static function title($value)
+	public static function title()
 	{
-		return mb_convert_case($value, MB_CASE_TITLE, 'UTF-8');
+		return new static(mb_convert_case($this->var, MB_CASE_TITLE, 'UTF-8'));
 	}
 
 	/**
@@ -678,35 +656,12 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string  $value
 	 * @return string
 	 */
-	public static function singular($value)
+	public function singular()
 	{
-		return Pluralizer::singular($value);
+		return new static(Pluralizer::singular($this->var));
 	}
 
-	/**
-	 * Generate a URL friendly "slug" from a given string.
-	 *
-	 * @param  string  $title
-	 * @param  string  $separator
-	 * @return string
-	 */
-	public static function slug($title, $separator = '-')
-	{
-		$title = static::ascii($title);
-
-		// Convert all dashes/underscores into separator
-		$flip = $separator == '-' ? '_' : '-';
-
-		$title = preg_replace('!['.preg_quote($flip).']+!u', $separator, $title);
-
-		// Remove all characters that are not the separator, letters, numbers, or whitespace.
-		$title = preg_replace('![^'.preg_quote($separator).'\pL\pN\s]+!u', '', mb_strtolower($title));
-
-		// Replace all separator characters and whitespace by a single separator
-		$title = preg_replace('!['.preg_quote($separator).'\s]+!u', $separator, $title);
-
-		return trim($title, $separator);
-	}
+	
 
 	/**
 	 * Convert a string to snake case.
@@ -715,13 +670,14 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string  $delimiter
 	 * @return string
 	 */
-	public static function snake($value, $delimiter = '_')
+	public function snake($delimiter = '_')
 	{
+		$value = $this->var;
 		$key = $value.$delimiter;
 
 		if (isset(static::$snakeCache[$key]))
 		{
-			return static::$snakeCache[$key];
+			return new static(static::$snakeCache[$key]);
 		}
 
 		if ( ! ctype_lower($value))
@@ -730,8 +686,7 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 
 			$value = strtolower(preg_replace('/(.)([A-Z])/', $replace, $value));
 		}
-
-		return static::$snakeCache[$key] = $value;
+		return new static(static::$snakeCache[$key] = $value);
 	}
 
 	/**
@@ -741,11 +696,11 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string|array  $needles
 	 * @return bool
 	 */
-	public static function startsWith($haystack, $needles)
+	public function startsWith($needles)
 	{
 		foreach ((array) $needles as $needle)
 		{
-			if ($needle != '' && strpos($haystack, $needle) === 0) return true;
+			if ($needle != '' && strpos($this->var, $needle) === 0) return true;
 		}
 
 		return false;
@@ -757,18 +712,18 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	 * @param  string  $value
 	 * @return string
 	 */
-	public static function studly($value)
+	public function studly()
 	{
-		$key = $value;
+		$key = $value = $this->var;
 
 		if (isset(static::$studlyCache[$key]))
 		{
-			return static::$studlyCache[$key];
+			return new static(static::$studlyCache[$key]);
 		}
 
 		$value = ucwords(str_replace(array('-', '_'), ' ', $value));
 
-		return static::$studlyCache[$key] = str_replace(' ', '', $value);
+		return new static(static::$studlyCache[$key] = str_replace(' ', '', $value));
 	}
 
 	// Magic methods
@@ -777,8 +732,23 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	public function __toString() {
 		return (string)$this->var;
 	}
+
+	public function __isset($prop) {
+		
+	}
+	public function jsonSerialize() {
+		return $this->var;
+	}
+	public function serialize() {
+
+	}
+
+	public function unserialize($str) {
+
+	}
 	// Array 
 	public function getIterator() {
+
 		return new ArrayIterator($this->var);
 	}
 
@@ -787,7 +757,7 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	}
 
 	public function offsetSet($key, $val) {
-
+		$this->var[$key] = $val;
 	}
 
 	public function offsetExists($key) {
@@ -795,6 +765,22 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate
 	}
 
 	public function offsetUnset($key) {
-
+		unset($this->var[$key]);
+	}
+	public function get() {
+		return self::$extends;
+	}
+	public function __debugInfo() {
+		return ['string' => $this->var, 'length' => strlen($this->var)];
+	}
+	public function __call($fn, $args) {
+		if(isset(self::$extends[$fn])) {
+			return $this->parse(call_user_func_array(self::$extends[$fn], $args));
+		}
+		if(function_exists($fn)) {
+			$args[] = $this->var;
+			return $this->parse(call_user_func_array($fn, $args));
+		}
+		throw new PQueryException("Call to undefined function", 404);
 	}
 }

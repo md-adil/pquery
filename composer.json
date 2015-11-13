@@ -1,0 +1,13 @@
+{
+    "name": "adil/pquery",
+    "authors": [
+        {
+            "name": "Md Adil",
+            "email": "md-adil@live.com"
+        }
+    ],
+    "require": {},
+    "require-dev": {
+    	"phpunit/phpunit": "5.0.*"
+    }
+}

@@ -2,12 +2,15 @@
 /**
 * 
 */
-class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable
+class Arr extends Core implements \Iterator, \ArrayAccess, \Serializable, \Countable, \JsonSerializable
 {
-	protected $allowed = ['json', 'len'];
 	protected $var;
-	function __construct($array) {
-		parent::__construct();
+	protected $allowed = ['json', 'length'];
+	protected $called_class = 'Arr';
+
+	private $key;
+
+	function __construct(array $array) {
 		$this->var = $array;
 	}
 
@@ -17,7 +20,7 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 		return new Str(implode($delimeter, $this->var));
 	}
 
-	public function len() {
+	public function length() {
 		return count($this->var);
 	}
 
@@ -37,24 +40,18 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	}
 
 	public function map(\Closure $callback) {
-		$array = [];
+		$mapped = new static([]);
+		$callback = $callback->bindTo($mapped);
 		foreach($this->var as $key => $value) {
 			$key = is_int($key) ? $key : new Str($key);
 			if(is_array($value)) {
 				$value = new Arr($value);
-			}
-			if(is_string($value)) {
+			} elseif(is_string($value)) {
 				$value = new Str($value);
 			}
-			$callback = $callback->bindTo(new ArrMap($key, $value));
-			$output = call_user_func($callback, $key, $value);
-			if($output instanceof ArrMap) {
-				$array[$output->key] = $output->value;
-			} else {
-				$array[] = $output;
-			}
+			$output = call_user_func($callback, $key, $value, $mapped);
 		}
-		return $array;
+		return $mapped;
 	}
 
 	// Core functions
@@ -238,9 +235,6 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 
 	}
 
-	public function current() {
-
-	}
 	
 	public function end() {
 
@@ -251,9 +245,7 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	public function in_array() {
 
 	}
-	public function key() {
-
-	}
+	
 	public function krsort() {
 
 	}
@@ -269,9 +261,7 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	public function natsort() {
 
 	}
-	public function next() {
-
-	}
+	
 	public function pos() {
 
 	}
@@ -330,24 +320,16 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	 * @param  mixed   $value
 	 * @return array
 	 */
-	public function add($array, $key, $value)
+	public function add($key, $value)
 	{
-		if (is_null(static::get($array, $key)))
+		$array = $this->var;
+		if (is_null($this->get($key)))
 		{
-			static::set($array, $key, $value);
+			$this->set($key, $value);
 		}
 
-		return $array;
+		return new static($array);
 	}
-
-	/**
-	 * Build a new array using a callback.
-	 *
-	 * @param  array     $array
-	 * @param  \Closure  $callback
-	 * @return array
-	 */
-	
 
 	/**
 	 * Divide an array into two arrays. One with keys and the other with values.
@@ -355,9 +337,9 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	 * @param  array  $array
 	 * @return array
 	 */
-	public function divide($array)
+	public function divide()
 	{
-		return array(array_keys($array), array_values($array));
+		return new static(array(array_keys($this->var), array_values($this->var)));
 	}
 
 	/**
@@ -367,15 +349,16 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	 * @param  string  $prepend
 	 * @return array
 	 */
-	public function dot($array, $prepend = '')
+	public function dot($prepend = '')
 	{
+		$array = $this->var;
 		$results = array();
 
 		foreach ($array as $key => $value)
 		{
 			if (is_array($value))
 			{
-				$results = array_merge($results, static::dot($value, $prepend.$key.'.'));
+				$results = array_merge($results, $this->dot($prepend.$key.'.'));
 			}
 			else
 			{
@@ -383,7 +366,7 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 			}
 		}
 
-		return $results;
+		return new static($results);
 	}
 
 	/**
@@ -393,9 +376,9 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	 * @param  array|string  $keys
 	 * @return array
 	 */
-	public function except($array, $keys)
+	public function except($keys)
 	{
-		return array_diff_key($array, array_flip((array) $keys));
+		return new static(array_diff_key($this->var, array_flip((array) $keys)));
 	}
 
 	/**
@@ -405,8 +388,9 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	 * @param  string  $key
 	 * @return array
 	 */
-	public function fetch($array, $key)
+	public function fetch($key)
 	{
+		$array = $this->var;
 		foreach (explode('.', $key) as $segment)
 		{
 			$results = array();
@@ -422,7 +406,7 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 			$array = array_values($results);
 		}
 
-		return array_values($results);
+		return new static(array_values($results));
 	}
 
 	/**
@@ -433,14 +417,15 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	 * @param  mixed     $default
 	 * @return mixed
 	 */
-	public function first($array, $callback, $default = null)
+	public function first($callback, $default = null)
 	{
+		$array = $this->var;
 		foreach ($array as $key => $value)
 		{
-			if (call_user_func($callback, $key, $value)) return $value;
+			if (call_user_func($callback, $key, $value)) return $this->parse($value);
 		}
 
-		return value($default);
+		return $default;
 	}
 
 	/**
@@ -514,21 +499,20 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	public function get($key, $default = null, $seprator = '.')
 	{
 		$array = $this->var;
-		if (is_null($key)) return $array;
+		if (is_null($key)) return new static($array);
 
-		if (isset($array[$key])) return $array[$key];
+		if (isset($array[$key])) return $this->parse($array[$key]);
 
 		foreach (explode($seprator, $key) as $segment)
 		{
 			if ( ! is_array($array) || ! array_key_exists($segment, $array))
 			{
-				return $default;
+				return $this->parse($default);
 			}
 
 			$array = $array[$segment];
 		}
-		$this->var = $array;
-		return $this;
+		return $this->parse($array);
 	}
 
 	/**
@@ -567,7 +551,7 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	 */
 	public function only($keys)
 	{
-		return array_intersect_key($this->var, array_flip((array) $keys));
+		return new static(array_intersect_key($this->var, array_flip((array) $keys)));
 	}
 
 	/**
@@ -602,7 +586,7 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 			}
 		}
 
-		return $results;
+		return new static($results);
 	}
 
 	/**
@@ -617,7 +601,7 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	{
 		$value = $this->get($key, $default, $seprator);
 		$this->forget($key, $seprator);
-		return $value;
+		return $this->parse($value);
 	}
 
 	/**
@@ -630,9 +614,9 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	 * @param  mixed   $value
 	 * @return array
 	 */
-	public function set(&$array, $key, $value)
+	public function set($key, $value)
 	{
-		if (is_null($key)) return $array = $value;
+		if (is_null($key)) return $this->var = $value;
 
 		$keys = explode('.', $key);
 
@@ -643,17 +627,17 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 			// If the key doesn't exist at this depth, we will just create an empty array
 			// to hold the next value, allowing us to create the arrays to hold final
 			// values at the correct depth. Then we'll keep digging into the array.
-			if ( ! isset($array[$key]) || ! is_array($array[$key]))
+			if ( ! isset($this->var[$key]) || ! is_array($this->var[$key]))
 			{
-				$array[$key] = array();
+				$this->var[$key] = array();
 			}
 
-			$array =& $array[$key];
+			$this->var = $this->var[$key];
 		}
 
 		$array[array_shift($keys)] = $value;
 
-		return $array;
+		return $this;
 	}
 
 	/**
@@ -668,37 +652,12 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 		return Collection::make($array)->sortBy($callback)->all();
 	}
 
-	/**
-	 * Filter the array using the given Closure.
-	 *
-	 * @param  array     $array
-	 * @param  \Closure  $callback
-	 * @return array
-	 */
-	public function where($array, Closure $callback)
-	{
-		$filtered = array();
-
-		foreach ($array as $key => $value)
-		{
-			if (call_user_func($callback, $key, $value)) $filtered[$key] = $value;
-		}
-
-		return $filtered;
-	}
-
-
-
 	// Magic Methods
 
 	public function __toString() {
 		return print_r($this->var, 1);
 	}
-	// Array
-	public function getIterator() {
-		return new \ArrayIterator($this->var);
-	}
-
+	
 	public function serialize() {
 		
 	}
@@ -707,11 +666,16 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 
 	}
 	public function offsetGet($key) {
-		return $this->var[$key];
+		return $this->parse($this->var[$key]);
 	}
 
 	public function offsetSet($key, $val) {
-		$this->var[$key] = $val;
+		if($key) {
+			$this->var[$key] = $val;
+		} else {
+			$this->var[] = $val;
+		}
+		return $this;
 	}
 
 	public function offsetUnset($key) {
@@ -719,15 +683,52 @@ class Arr extends Core implements \IteratorAggregate, \ArrayAccess, \Serializabl
 	}
 
 	public function offsetExists($key) {
-
+		return isset($this->var[$key]);
 	}
 
 	public function count() {
 		return count($this->var);
 	}
 
+	public function jsonSerialize() {
+		return $this->var;
+	}
 	public function __debugInfo() {
 		return $this->var;
+	}
+
+	// Array iterator
+
+	public function current() {
+		return $this->parse(current($this->var));
+	}
+	
+	public function key() {
+		$key = key($this->var);
+		return is_int($key) ? $key : new Str($key);
+	}
+
+	public function next() {
+		next($this->var);
+	}
+
+	public function rewind() {	
+		reset($this->var);
+	}
+
+	public function valid() {
+		return key($this->var) !== null;
+	}
+
+	public function __call($fn, $args) {
+		if(isset(self::$extends[$fn])) {
+			return $this->parse(call_user_func_array(self::$extends[$fn], $args));
+		}
+		if(function_exists('array_' . $fn)) {
+			$args[] = $this->var;
+			return $this->parse(call_user_func_array('array_' . $fn, $args));
+		}
+		throw new PQueryException("Call to undefined function {$fn}()", 404);
 	}
 	// End Magic Methods
 }
