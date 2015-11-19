@@ -1,11 +1,6 @@
-<?php
-require 'Core.php';
-require 'PQueryException.php';
-require 'Arr.php';
-require 'ArrMap.php';
-require 'Regex.php';
-require 'Str.php';
-require 'PDOAccessor.php';
+<?php 
+use PQuery\Arr;
+use PQuery\Str;
 function str($str) {
 	return new Str($str);
 }

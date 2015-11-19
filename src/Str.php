@@ -1,14 +1,16 @@
-<?php
+<?php namespace PQuery;
+use Doctrine\Common\Inflector\Inflector;
 /**
 * 
 */
 class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerializable, \Serializable
 {
 	protected $var;
-	protected $allowed = ['length', 'json', 'snake', 'camel'];
-	private static $camelCache = [];
+	protected $allowed = [
+		'length', 'json', 'snake', 'camel', 'plural',
+		'singular', 'upper', 'lower'
+	];
 	private static $snakeCache = [];
-	private static $studlyCache = [];
 
 	public static $extends = [];
 
@@ -44,9 +46,9 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerial
 	public function html($element, $attrs = []) {
 		$attribute = '';
 		foreach($attrs as $attr => $val) {
-			$attribute .= "{$attr}=\"{$val}\" ";
+			$attribute .= " {$attr}=\"{$val}\"";
 		}
-		return new static("<{$element} {$attribute}>$this->var</{$element}>");
+		return new static("<{$element}{$attribute}>$this->var</{$element}>");
 	}
 
 	public function json($array = false) {
@@ -72,6 +74,23 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerial
 	public function equal($str) {
 		return $this->var == (string)$str;
 	}
+
+	// Doctrine Inflector
+	
+	
+	public function camel() {
+		return new static(Inflector::camelize($this->var));
+	}
+	public function ucwords($delimiters = " \n\t\r\0\x0B-") {
+		return new static(Inflector::ucwords($this->var, $delimiters));
+	}
+	public function plural() {
+		return new static(Inflector::pluralize($this->var));
+	}
+	public function singular() {
+		return new static(Inflector::singularize($this->var));
+	}	
+	// End Doctrine Inflector
 
 	// Regex functions
 	public function preg_filter() {
@@ -190,9 +209,7 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerial
 
 	}
 	
-	public function md5_file() {
-
-	}
+	
 	public function metaphone() {
 
 	}
@@ -307,9 +324,7 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerial
 	public function stristr() {
 
 	}
-	public function strlen() {
-
-	}
+	
 	public function strnatcasecmp() {
 
 	}
@@ -380,9 +395,7 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerial
 		return $this;
 	}
 
-	public function ucwords() {
-
-	}
+	
 	public function vfprintf() {
 
 	}
@@ -408,7 +421,7 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerial
 		return new static($this->var . implode('', func_get_args()));
 	}
 
-	public function concat_ws() {
+	public function concatWs() {
 		$args = func_get_args();
 		$concater = array_shift($args);
 		return new static($this->var . $concater . implode($concater, $args));
@@ -424,10 +437,6 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerial
 	}
 
 	public function localeCompare() {
-		
-	}
-
-	public function match() {
 		
 	}
 
@@ -464,26 +473,7 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerial
 
 	public function ascii()
 	{
-		return Utf8::toAscii($this->var);
-	}
-
-	/**
-	 * Convert a value to camel case.
-	 *
-	 * @param  string  $value
-	 * @return string
-	 */
-	public function camel()
-	{
-		$value = $this->var;
-		if (isset(static::$camelCache[$value]))
-		{
-			$var = static::$camelCache[$value];
-		} else 
-		{
-			$var = static::$camelCache[$value] = lcfirst($this->studly());
-		}
-		return new static($var);
+		return ord($this->var);
 	}
 
 	/**
@@ -600,34 +590,6 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerial
 		return new static(rtrim($matches[0]).$end);
 	}
 
-	
-	/**
-	 * Get the plural form of an English word.
-	 *
-	 * @param  string  $value
-	 * @param  int     $count
-	 * @return string
-	 */
-	public static function plural($value, $count = 2)
-	{
-		return Pluralizer::plural($value, $count);
-	}
-
-	/**
-	 * Generate a "random" alpha-numeric string.
-	 *
-	 * Should not be considered sufficient for cryptography, etc.
-	 *
-	 * @param  int  $length
-	 * @return string
-	 */
-	public static function quickRandom($length = 16)
-	{
-		$pool = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-
-		return substr(str_shuffle(str_repeat($pool, $length)), 0, $length);
-	}
-
 	/**
 	 * Convert the given string to upper-case.
 	 *
@@ -649,19 +611,6 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerial
 	{
 		return new static(mb_convert_case($this->var, MB_CASE_TITLE, 'UTF-8'));
 	}
-
-	/**
-	 * Get the singular form of an English word.
-	 *
-	 * @param  string  $value
-	 * @return string
-	 */
-	public function singular()
-	{
-		return new static(Pluralizer::singular($this->var));
-	}
-
-	
 
 	/**
 	 * Convert a string to snake case.
@@ -734,7 +683,11 @@ class Str extends Core  implements \ArrayAccess, \IteratorAggregate, \JsonSerial
 	}
 
 	public function __isset($prop) {
-		
+		if(isset($this->allowed[$prop])) {
+			return true;
+		}
+
+		return false;
 	}
 	public function jsonSerialize() {
 		return $this->var;

@@ -1,8 +1,5 @@
 <?php
-include 'functions.php';
+include 'vendor/autoload.php';
 
-function pdo1($dbname, $host='localhost', $user='root', $password="") {
-	return new PDO("mysql:host={$host};dbname={$dbname}", $user, $password);
-}
 
-$pdo = pdo1('aqil_2');
+echo str("Adil")->split();
